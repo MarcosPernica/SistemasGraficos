@@ -1,0 +1,6 @@
+var VERTEXBUFFERPOSICION = 0;
+var VERTEXBUFFERCOLOR = 1;
+var VERTEXBUFFERTEXTURA = 2;
+var COLORROJO = new Array(1, 0, 0);
+var COLORVERDE = new Array(0, 1, 0);
+var COLORAZUL = new Array(0, 0, 1);

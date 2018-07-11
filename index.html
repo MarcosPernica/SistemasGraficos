@@ -1,0 +1,838 @@
+<html>
+	<head id='head'>
+	
+		<style>
+			*
+			{
+				-webkit-user-select: none; 
+				-moz-user-select: none;     
+				-ms-user-select: none;      
+				user-select: none; 
+			}
+			.agarrando
+			{
+				cursor: -webkit-grabbing;
+				cursor: -moz-grabbing;
+				cursor: grabbing
+			}
+			
+			.soltando
+			{
+				cursor: -webkit-grab;
+				cursor: -moz-grab;
+				cursor: grab;
+			}
+		
+		</style>
+		
+		<meta http-equiv="content-type" content="text/html; charset=utf-8"/>
+		
+		<script id='shaderVerticesDefecto' type='shaderVertices'>
+			attribute vec4 posicionVertice;
+			attribute vec4 colorVertice;
+			
+			uniform mat4 transformacionObjeto;
+			uniform mat4 matrizPerspectiva;
+			
+			varying highp vec4 vColor;
+
+			void main() 
+			{
+				gl_Position = matrizPerspectiva * transformacionObjeto * posicionVertice;
+				vColor = colorVertice;
+			}
+		</script>
+		
+		<script id='shaderFragmentosDefecto' type='shaderFragmentos'>
+			precision mediump float;
+			varying highp vec4 vColor;
+
+			void main() 
+			{
+				gl_FragColor = vColor;
+			}
+		</script>
+		
+		
+		
+		<script id='shaderVerticesTextura' type='shaderVertices'>
+			attribute vec4 posicionVertice;
+			attribute vec2 posicionTextura;
+			
+			uniform mat4 transformacionObjeto;
+			uniform mat4 matrizPerspectiva;
+			
+			varying vec2 posicionTexturaFragmento;
+
+			void main() 
+			{
+				gl_Position = matrizPerspectiva * transformacionObjeto * posicionVertice;
+				posicionTexturaFragmento = posicionTextura;
+			}
+		</script>
+		
+		<script id='shaderFragmentosTextura' type='shaderFragmentos'>
+			precision mediump float;
+			varying vec2 posicionTexturaFragmento;
+			
+			uniform sampler2D textura;
+
+			void main() 
+			{
+				gl_FragColor = texture2D(textura, posicionTexturaFragmento);
+			}
+		</script>
+		
+		<script id='shaderVerticesDifusos' type='shaderVertices'>
+			precision mediump float;
+			
+			attribute vec4 posicionVertice;
+			attribute vec2 posicionTextura;	
+			uniform mat4 transformacionObjeto;
+			uniform mat4 matrizPerspectiva;
+			
+			varying vec2 posicionTexturaFragmento;
+			
+			attribute vec3 vNormalVertice;			
+			varying vec3 normalVertice;
+			
+			varying vec3 posicion;		
+
+			void main() 
+			{
+				gl_Position = matrizPerspectiva * transformacionObjeto * posicionVertice;
+				posicionTexturaFragmento = posicionTextura;
+				normalVertice = vNormalVertice;
+				posicion = vec3(transformacionObjeto * posicionVertice);
+			}
+		</script>
+		
+		<script id='shaderFragmentosDifusos' type='shaderFragmentos'>
+			precision mediump float;
+			varying vec2 posicionTexturaFragmento;
+			uniform sampler2D textura;
+			
+			uniform vec3 intensidadLuzAmbiente;
+			
+			uniform vec3 intensidadLuzSolar;
+			uniform vec3 direccionInversaLuzSolar;
+			
+			uniform vec3 intensidadesLucesPuntuales[4];
+			uniform vec3 posicionesLucesPuntuales[4];
+			
+			uniform vec3 coeficienteEspecular;
+			uniform vec3 coeficienteAmbiente;
+			uniform float factorGlossy;
+			
+			uniform vec3 posicionCamara;
+			
+			varying vec3 posicion;
+			varying vec3 normalVertice;
+			
+			uniform mat3 matrizNormales;
+
+			void main() 
+			{
+				vec3 normal = normalize(matrizNormales * normalVertice);
+				vec3 colorResultante = vec3(0.0, 0.0, 0.0);
+				
+				vec3 L;
+				vec3 R;
+				vec3 V = normalize(posicionCamara - posicion);
+				
+				float NL;
+				float VR;
+				float factorAtenuacion;
+				float distanciaCuadrada;
+				vec3 posicionRelativaLuzFragmento;
+				vec3 coeficienteDifusa = vec3(texture2D(textura, posicionTexturaFragmento));
+				//Calcula la luz ambiente.
+				colorResultante += coeficienteAmbiente * intensidadLuzAmbiente;
+				
+				//Calcula las 3 luces puntuales.
+				for(int i = 0; i < 4; i++)
+				{						
+						L = normalize(posicionesLucesPuntuales[i] - posicion);
+						
+						NL = max(0.0, dot(L, normal));
+						
+						posicionRelativaLuzFragmento = posicion - posicionesLucesPuntuales[i];
+						posicionRelativaLuzFragmento = posicionRelativaLuzFragmento * posicionRelativaLuzFragmento;
+						distanciaCuadrada = posicionRelativaLuzFragmento[0] + posicionRelativaLuzFragmento[1] + posicionRelativaLuzFragmento[2];
+						factorAtenuacion = 1.0 / (distanciaCuadrada / 50000.0);
+						
+						colorResultante += factorAtenuacion * NL * coeficienteDifusa * intensidadesLucesPuntuales[i];
+						
+						R = reflect(-L, normal);
+						VR = dot(V, R);
+						if(VR >= 0.0)
+							colorResultante += factorAtenuacion * pow(VR, factorGlossy) * coeficienteEspecular * intensidadesLucesPuntuales[i];
+						
+				}
+				
+				//Calcula la luz solar.
+				
+				L = direccionInversaLuzSolar;
+						
+				NL = dot(L, normal);
+				if(NL >= 0.0)
+				{
+					colorResultante += NL * coeficienteDifusa * intensidadLuzSolar;
+					
+					R = reflect(-L, normal);
+					VR = dot(V, R);
+					if(VR >= 0.0)
+						colorResultante += pow(VR, factorGlossy) * coeficienteEspecular * intensidadLuzSolar;
+				}
+			
+				gl_FragColor = vec4(colorResultante, 1.0);		
+			}
+		</script>
+		
+		
+		
+		
+		
+		
+		<script id='shaderVerticesDifusosMapaNormales' type='shaderVertices'>
+			attribute vec4 posicionVertice;
+			attribute vec2 posicionTextura;	
+			uniform mat4 transformacionObjeto;
+			uniform mat4 matrizPerspectiva;
+			uniform mat3 matrizNormales;
+			
+			varying vec2 posicionTexturaFragmento;
+			
+			attribute vec3 vNormalVertice;			
+			attribute vec3 vTangenteVertice;			
+			varying vec3 normalVertice;
+			varying vec3 tangenteVertice;
+			varying vec3 binormalVertice;
+			
+			varying vec3 posicion;		
+
+			void main() 
+			{
+				gl_Position = matrizPerspectiva * transformacionObjeto * posicionVertice;
+				posicionTexturaFragmento = posicionTextura;
+				normalVertice = matrizNormales * vNormalVertice;
+				tangenteVertice = matrizNormales * vTangenteVertice;
+				binormalVertice = cross(normalVertice, tangenteVertice);
+				
+				posicion = vec3(transformacionObjeto * posicionVertice);
+			}
+		</script>
+		
+		<script id='shaderFragmentosDifusosMapaNormales' type='shaderFragmentos'>
+			precision mediump float;
+			varying vec2 posicionTexturaFragmento;
+			uniform sampler2D textura;
+			uniform sampler2D mapaNormales;
+			
+			uniform vec3 intensidadLuzAmbiente;
+			
+			uniform vec3 intensidadLuzSolar;
+			uniform vec3 direccionInversaLuzSolar;
+			
+			uniform vec3 intensidadesLucesPuntuales[4];
+			uniform vec3 posicionesLucesPuntuales[4];
+			
+			uniform vec3 coeficienteEspecular;
+			uniform vec3 coeficienteAmbiente;
+			uniform float factorGlossy;
+			
+			uniform vec3 posicionCamara;
+			
+			varying vec3 posicion;
+			varying vec3 normalVertice;
+			varying vec3 tangenteVertice;
+			varying vec3 binormalVertice;
+			
+			void main() 
+			{
+				vec3 coeficienteDifusa = vec3(texture2D(textura, posicionTexturaFragmento));
+				
+				vec3 normal = normalize(normalVertice);
+				vec3 tangente = normalize(tangenteVertice);
+				vec3 binormal = normalize(binormalVertice);
+				
+				vec3 normalMapa = vec3(texture2D(mapaNormales, posicionTexturaFragmento));
+				normalMapa *= 2.0;
+				normalMapa -= 1.0;			
+				
+				vec3 colorResultante = vec3(0.0, 0.0, 0.0);
+				
+				normalMapa = vec3(	tangente.x * normalMapa.x + binormal.x * normalMapa.y + normal.x * normalMapa.z,
+									tangente.y * normalMapa.x + binormal.y * normalMapa.y + normal.y * normalMapa.z,
+									tangente.z * normalMapa.x + binormal.z * normalMapa.y + normal.z * normalMapa.z);
+				
+				vec3 L;
+				vec3 R;
+				vec3 V = normalize(posicionCamara - posicion);
+				
+				float NL;
+				float VR;
+				float factorAtenuacion;
+				float distanciaCuadrada;
+				vec3 posicionRelativaLuzFragmento;
+				
+				//Calcula la luz ambiente.
+				colorResultante += coeficienteAmbiente * intensidadLuzAmbiente;
+				
+				//Calcula las 3 luces puntuales.
+				for(int i = 0; i < 4; i++)
+				{						
+						L = normalize(posicionesLucesPuntuales[i] - posicion);
+						
+						NL = max(0.0, dot(L, normalMapa));
+						
+						posicionRelativaLuzFragmento = posicion - posicionesLucesPuntuales[i];
+						posicionRelativaLuzFragmento = posicionRelativaLuzFragmento * posicionRelativaLuzFragmento;
+						distanciaCuadrada = posicionRelativaLuzFragmento[0] + posicionRelativaLuzFragmento[1] + posicionRelativaLuzFragmento[2];
+						factorAtenuacion = 1.0 / (distanciaCuadrada / 50000.0);
+						
+						colorResultante += factorAtenuacion * NL * coeficienteDifusa * intensidadesLucesPuntuales[i];
+						
+						R = reflect(-L, normalMapa);
+						VR = dot(V, R);
+						if(VR >= 0.0)
+							colorResultante += factorAtenuacion * pow(VR, factorGlossy) * coeficienteEspecular * intensidadesLucesPuntuales[i];
+						
+				}
+				
+				//Calcula la luz solar.
+				
+				L = direccionInversaLuzSolar;
+						
+				NL = dot(L, normalMapa);
+				if(NL >= 0.0)
+				{
+					colorResultante += NL * coeficienteDifusa * intensidadLuzSolar;
+					
+					R = reflect(-L, normalMapa);
+					VR = dot(V, R);
+					if(VR >= 0.0)
+						colorResultante += pow(VR, factorGlossy) * coeficienteEspecular * intensidadLuzSolar;
+				}
+			
+				gl_FragColor = vec4(colorResultante, 1.0);			
+			}
+		</script>
+		
+
+		
+		
+		
+		<script id='shaderVerticesDifusosMapaNormalesReflejo' type='shaderVertices'>
+			attribute vec4 posicionVertice;
+			attribute vec2 posicionTextura;	
+			uniform mat4 transformacionObjeto;
+			uniform mat4 matrizPerspectiva;
+			uniform mat3 matrizNormales;
+			
+			varying vec2 posicionTexturaFragmento;
+			
+			attribute vec3 vNormalVertice;			
+			attribute vec3 vTangenteVertice;			
+			varying vec3 normalVertice;
+			varying vec3 tangenteVertice;
+			varying vec3 binormalVertice;
+			
+			varying vec3 posicion;		
+
+			void main() 
+			{
+				gl_Position = matrizPerspectiva * transformacionObjeto * posicionVertice;
+				posicionTexturaFragmento = posicionTextura;
+				
+				normalVertice = matrizNormales * vNormalVertice;
+				tangenteVertice = matrizNormales * vTangenteVertice;
+				binormalVertice = cross(normalVertice, tangenteVertice);
+				
+				posicion = vec3(transformacionObjeto * posicionVertice);
+			}
+		</script>
+		
+		<script id='shaderFragmentosDifusosMapaNormalesReflejo' type='shaderFragmentos'>
+			precision mediump float;
+			varying vec2 posicionTexturaFragmento;
+			uniform sampler2D textura;
+			uniform sampler2D mapaNormales;
+			uniform samplerCube mapaReflejo;
+			
+			uniform vec3 intensidadLuzAmbiente;
+			
+			uniform vec3 intensidadLuzSolar;
+			uniform vec3 direccionInversaLuzSolar;
+			
+			uniform vec3 intensidadesLucesPuntuales[4];
+			uniform vec3 posicionesLucesPuntuales[4];
+			
+			uniform vec3 coeficienteEspecular;
+			uniform vec3 coeficienteAmbiente;
+			uniform float factorGlossy;
+			uniform float factorReflejo;
+			
+			uniform vec3 posicionCamara;
+			
+			varying vec3 posicion;
+			varying vec3 normalVertice;
+			varying vec3 tangenteVertice;
+			varying vec3 binormalVertice;
+			
+			void main() 
+			{
+				vec3 coeficienteDifusa = vec3(texture2D(textura, posicionTexturaFragmento));
+				
+				vec3 normal = normalize(normalVertice);
+				vec3 tangente = normalize(tangenteVertice);
+				vec3 binormal = normalize(binormalVertice);
+				
+				vec3 normalMapa = vec3(texture2D(mapaNormales, posicionTexturaFragmento));
+				normalMapa *= 2.0;
+				normalMapa -= 1.0;				
+				vec3 colorResultante = vec3(0.0, 0.0, 0.0);
+				
+				normalMapa = vec3(	tangente.x * normalMapa.x + binormal.x * normalMapa.y + normal.x * normalMapa.z,
+									tangente.y * normalMapa.x + binormal.y * normalMapa.y + normal.y * normalMapa.z,
+									tangente.z * normalMapa.x + binormal.z * normalMapa.y + normal.z * normalMapa.z);
+									
+				vec3 rayoIncidente = posicion - posicionCamara;
+				vec3 rayoReflejado = reflect(rayoIncidente, normalMapa);					
+				
+				vec3 L;
+				vec3 R;
+				vec3 V = normalize(posicionCamara - posicion);
+				
+				float NL;
+				float VR;
+				float factorAtenuacion;
+				float distanciaCuadrada;
+				vec3 posicionRelativaLuzFragmento;
+				
+				//Calcula la luz ambiente.
+				colorResultante += coeficienteAmbiente * intensidadLuzAmbiente;
+				
+				//Calcula las 3 luces puntuales.
+				for(int i = 0; i < 4; i++)
+				{						
+						L = normalize(posicionesLucesPuntuales[i] - posicion);
+						
+						NL = dot(L, normalMapa);
+						if(NL >= 0.0)
+						{
+							posicionRelativaLuzFragmento = posicion - posicionesLucesPuntuales[i];
+							posicionRelativaLuzFragmento = posicionRelativaLuzFragmento * posicionRelativaLuzFragmento;
+							distanciaCuadrada = posicionRelativaLuzFragmento[0] + posicionRelativaLuzFragmento[1] + posicionRelativaLuzFragmento[2];
+							factorAtenuacion = 1.0 / (distanciaCuadrada / 50000.0);
+							
+							colorResultante += factorAtenuacion * NL * coeficienteDifusa * intensidadesLucesPuntuales[i];
+							
+							R = reflect(-L, normal);
+							VR = dot(V, R);
+							if(VR >= 0.0)
+								colorResultante += factorAtenuacion * pow(VR, factorGlossy) * coeficienteEspecular * intensidadesLucesPuntuales[i];
+						}
+				}
+				
+				//Calcula la luz solar.
+				
+				L = direccionInversaLuzSolar;
+						
+				NL = dot(L, normalMapa);
+				if(NL >= 0.0)
+				{
+					colorResultante += NL * coeficienteDifusa * intensidadLuzSolar;
+					
+					R = reflect(-L, normal);
+					VR = dot(V, R);
+					if(VR >= 0.0)
+						colorResultante += pow(VR, factorGlossy) * coeficienteEspecular * intensidadLuzSolar;
+				}
+			
+				gl_FragColor = vec4((1.0 - factorReflejo) * coeficienteDifusa * colorResultante, 1.0) + factorReflejo * textureCube(mapaReflejo, rayoReflejado);	
+			}
+		</script>
+		
+		
+		
+		
+		
+			<script id='shaderVerticesDifusosReflejo' type='shaderVertices'>
+			attribute vec4 posicionVertice;
+			attribute vec2 posicionTextura;	
+			uniform mat4 transformacionObjeto;
+			uniform mat4 matrizPerspectiva;
+			uniform mat3 matrizNormales;
+						
+			varying vec2 posicionTexturaFragmento;
+			
+			attribute vec3 vNormalVertice;		
+			varying vec3 normalVertice;
+			
+			varying vec3 posicion;		
+
+			void main() 
+			{
+				gl_Position = matrizPerspectiva * transformacionObjeto * posicionVertice;
+				posicionTexturaFragmento = posicionTextura;
+				
+				normalVertice = matrizNormales * vNormalVertice;
+				posicion = vec3(transformacionObjeto * posicionVertice);
+			}
+		</script>
+		
+		<script id='shaderFragmentosDifusosReflejo' type='shaderFragmentos'>
+			precision mediump float;
+			varying vec2 posicionTexturaFragmento;
+			uniform sampler2D textura;
+			uniform samplerCube mapaReflejo;
+			
+			uniform vec3 intensidadLuzAmbiente;
+			
+			uniform vec3 intensidadLuzSolar;
+			uniform vec3 direccionInversaLuzSolar;
+			
+			uniform vec3 intensidadesLucesPuntuales[4];
+			uniform vec3 posicionesLucesPuntuales[4];
+			
+			uniform vec3 coeficienteEspecular;
+			uniform vec3 coeficienteAmbiente;
+			uniform float factorGlossy;
+			uniform float factorReflejo;
+			
+			uniform vec3 posicionCamara;
+			
+			varying vec3 posicion;
+			varying vec3 normalVertice;
+			
+			void main() 
+			{
+				vec3 colorResultante = vec3(0.0, 0.0, 0.0);
+				vec3 coeficienteDifusa = vec3(texture2D(textura, posicionTexturaFragmento));
+				vec3 normal = normalize(normalVertice);
+									
+				vec3 rayoIncidente = posicion - posicionCamara;
+				vec3 rayoReflejado = reflect(rayoIncidente, normal);					
+				
+				vec3 L;
+				vec3 R;
+				vec3 V = normalize(posicionCamara - posicion);
+				
+				float NL;
+				float VR;
+				float factorAtenuacion;
+				float distanciaCuadrada;
+				vec3 posicionRelativaLuzFragmento;
+				
+				//Calcula la luz ambiente.
+				colorResultante += coeficienteAmbiente * intensidadLuzAmbiente;
+				
+				//Calcula las 4 luces puntuales.
+				for(int i = 0; i < 4; i++)
+				{						
+						L = normalize(posicionesLucesPuntuales[i] - posicion);
+						
+						NL = dot(L, normal);
+						if(NL >= 0.0)
+						{
+							posicionRelativaLuzFragmento = posicion - posicionesLucesPuntuales[i];
+							posicionRelativaLuzFragmento = posicionRelativaLuzFragmento * posicionRelativaLuzFragmento;
+							distanciaCuadrada = posicionRelativaLuzFragmento[0] + posicionRelativaLuzFragmento[1] + posicionRelativaLuzFragmento[2];
+							factorAtenuacion = 1.0 / (distanciaCuadrada / 50000.0);
+							
+							colorResultante += factorAtenuacion * NL * coeficienteDifusa * intensidadesLucesPuntuales[i];
+							
+							R = reflect(-L, normal);
+							VR = dot(V, R);
+							if(VR >= 0.0)
+								colorResultante += factorAtenuacion * pow(VR, factorGlossy) * coeficienteEspecular * intensidadesLucesPuntuales[i];
+						}
+				}
+				
+				//Calcula la luz solar.
+				
+				L = direccionInversaLuzSolar;
+						
+				NL = dot(L, normal);
+				if(NL >= 0.0)
+				{
+					colorResultante += NL * coeficienteDifusa * intensidadLuzSolar;
+					
+					R = reflect(-L, normal);
+					VR = dot(V, R);
+					if(VR >= 0.0)
+						colorResultante += pow(VR, factorGlossy) * coeficienteEspecular * intensidadLuzSolar;
+				}
+			
+				gl_FragColor = vec4((1.0 - factorReflejo) * coeficienteDifusa * colorResultante, 1.0) + factorReflejo * textureCube(mapaReflejo, rayoReflejado);	
+			}
+		</script>
+		
+		
+		
+		
+		
+		
+		<script id='shaderVerticesAgua' type='shaderVertices'>
+			precision mediump float;
+			
+			attribute vec4 posicionVertice;
+			attribute vec2 posicionTextura;	
+			uniform mat4 transformacionObjeto;
+			uniform mat4 matrizPerspectiva;
+			uniform mat3 matrizNormales;
+						
+			varying vec2 posicionTexturaFragmento;
+			
+			attribute vec3 vNormalVertice;			
+			attribute vec3 vTangenteVertice;			
+			varying vec3 normalVertice;
+			varying vec3 tangenteVertice;
+			varying vec3 binormalVertice;
+
+			varying vec3 posicion;			
+
+			uniform float tiempo;
+			
+			void main() 
+			{
+				vec4 posicionOnda = posicionVertice + vec4(0, 0, 10.0 * cos(posicionVertice.x + tiempo) + 10.0 * sin(posicionVertice.y + tiempo) , 0);
+				gl_Position = matrizPerspectiva * transformacionObjeto * posicionOnda;
+				posicionTexturaFragmento = posicionTextura;
+				tangenteVertice = vec3(1.0, 0.0, -10.0 * sin(posicionVertice.x + tiempo));
+				normalVertice = cross(vec3(0.0, 1.0, 10.0 * cos(posicionVertice.y + tiempo)), tangenteVertice);
+				binormalVertice = matrizNormales * cross(normalVertice, tangenteVertice);
+				tangenteVertice = matrizNormales * tangenteVertice;
+				normalVertice = matrizNormales * normalVertice;
+				
+				posicion = vec3(transformacionObjeto * posicionOnda);
+			}
+		</script>
+		
+		<script id='shaderFragmentosAgua' type='shaderFragmentos'>
+			precision mediump float;
+			
+			varying vec2 posicionTexturaFragmento;
+			uniform sampler2D textura;
+			uniform sampler2D textura2;
+			uniform sampler2D mapaNormales;
+			uniform samplerCube mapaReflejo;
+			
+			uniform vec3 intensidadLuzAmbiente;
+			
+			uniform vec3 intensidadLuzSolar;
+			uniform vec3 direccionInversaLuzSolar;
+			
+			uniform vec3 intensidadesLucesPuntuales[4];
+			uniform vec3 posicionesLucesPuntuales[4];
+			
+			uniform vec3 coeficienteEspecular;
+			uniform vec3 coeficienteAmbiente;
+			uniform float factorGlossy;
+			uniform float factorReflejo;
+			
+			uniform vec3 posicionCamara;
+			
+			varying vec3 posicion;
+			varying vec3 normalVertice;
+			varying vec3 tangenteVertice;
+			varying vec3 binormalVertice;
+			
+			
+			uniform float tiempo;
+			
+			void main() 
+			{
+				vec3 coeficienteDifusa = 0.5 * vec3(texture2D(textura, posicionTexturaFragmento + vec2(tiempo/50.0, 0.0))) + 0.5 * vec3(texture2D(textura2, posicionTexturaFragmento*5.0 + vec2(0.0, cos(tiempo/10.0))));
+				
+				vec3 normal = normalize(normalVertice);
+				vec3 tangente = normalize(tangenteVertice);
+				vec3 binormal = normalize(binormalVertice);
+				
+				vec3 normalMapa = vec3(texture2D(mapaNormales, posicionTexturaFragmento));
+				normalMapa *= 2.0;
+				normalMapa -= 1.0;				
+				vec3 colorResultante = vec3(0.0, 0.0, 0.0);
+				
+				normalMapa = vec3(	tangente.x * normalMapa.x + binormal.x * normalMapa.y + normal.x * normalMapa.z,
+									tangente.y * normalMapa.x + binormal.y * normalMapa.y + normal.y * normalMapa.z,
+									tangente.z * normalMapa.x + binormal.z * normalMapa.y + normal.z * normalMapa.z);
+									
+				vec3 rayoIncidente = posicion - posicionCamara;
+				vec3 rayoReflejado = reflect(rayoIncidente, normalMapa);					
+				
+				vec3 L;
+				vec3 R;
+				vec3 V = normalize(posicionCamara - posicion);
+				
+				float NL;
+				float VR;
+				float factorAtenuacion;
+				float distanciaCuadrada;
+				vec3 posicionRelativaLuzFragmento;
+				
+				//Calcula la luz ambiente.
+				colorResultante += coeficienteAmbiente * intensidadLuzAmbiente;
+				
+				//Calcula las 3 luces puntuales.
+				for(int i = 0; i < 4; i++)
+				{						
+						L = normalize(posicionesLucesPuntuales[i] - posicion);
+						
+						NL = dot(L, normalMapa);
+						if(NL >= 0.0)
+						{
+							posicionRelativaLuzFragmento = posicion - posicionesLucesPuntuales[i];
+							posicionRelativaLuzFragmento = posicionRelativaLuzFragmento * posicionRelativaLuzFragmento;
+							distanciaCuadrada = posicionRelativaLuzFragmento[0] + posicionRelativaLuzFragmento[1] + posicionRelativaLuzFragmento[2];
+							factorAtenuacion = 1.0 / (distanciaCuadrada / 50000.0);
+							
+							colorResultante += factorAtenuacion * NL * coeficienteDifusa * intensidadesLucesPuntuales[i];
+							
+							R = reflect(-L, normal);
+							VR = dot(V, R);
+							if(VR >= 0.0)
+								colorResultante += factorAtenuacion * pow(VR, factorGlossy) * coeficienteEspecular * intensidadesLucesPuntuales[i];
+						}
+				}
+				
+				//Calcula la luz solar.
+				
+				L = direccionInversaLuzSolar;
+						
+				NL = dot(L, normalMapa);
+				if(NL >= 0.0)
+				{
+					colorResultante += NL * coeficienteDifusa * intensidadLuzSolar;
+					
+					R = reflect(-L, normal);
+					VR = dot(V, R);
+					if(VR >= 0.0)
+						colorResultante += pow(VR, factorGlossy) * coeficienteEspecular * intensidadLuzSolar;
+				}
+			
+				gl_FragColor = vec4((1.0 - factorReflejo) * coeficienteDifusa * colorResultante, 1.0) + factorReflejo * textureCube(mapaReflejo, rayoReflejado) * vec4(1, 0.47, 0.07, 1.0);	
+			}
+		</script>
+
+	</head>
+    <body class="soltando" style = "position:relative; top: 0px; left: 0px; background: black;">
+			<h1 style="color: white; display: block; text-align: center;">Sistemas Graficos - 66.71</h1>
+			<div style="width: 100%; position: absolute;">
+				<div style="width: 100%; position: absolute; top: 0px; left: 0px; z-index: 1;"> 
+					<canvas id="canvasLienzo" style="width: 100%">
+					</canvas>
+				</div>
+				<div style = "position: absolute; top: 0px; left: 0px; z-index: 2; color: white; background: rgba(0,0,0,0.5); padding: 20px;">
+					<h3>Desolacion colosal - Desarrollado por Marcos Gabriel Pernica</h3>
+					<h3>Controles de movimiento <button id = "buttonMostrarControles" style = "cursor: hand;">mostrar</button></h3>
+					 <div id = "divControles" style = "display:none;">
+						<ul>
+							<li>Usar los botones 1, 2 y 3 para cambiar de camara.</li>
+							<li>Con WASD se realiza el desplazamiento cuando se esta usando la camara 3.</li>
+							<li>Con E y C se utiliza el jetpack en la camara 3.</li>
+							<li>◄ ► para desplazar la grua lateralmente.</li>
+							<li>▲ ▼  para desplazar la cabina en el sentido del riel.</li>
+							<li>Usar las teclas O y L para subir y bajar el gancho de la grua.</li>
+							<li>ENTER para enganchar o desenganchar un contenedor (debe estar suficientemente cerca de la garra).</li>
+							<li>Agarrar y arrastrar con el mouse para modificar la direccion de la vista en primera persona.</li>
+							<li>Usar los botones + y - para hacer zoom en la camara orbital.</li>
+						</ul>
+					</div>
+				</div>
+			</div>
+			
+			<script>
+				var controles = document.getElementById('divControles');
+				var botonOcultar = document.getElementById('buttonMostrarControles');
+				var controlesOcultos = true;
+				
+				botonOcultar.onclick = 	function()
+										{
+											if(controlesOcultos)
+											{
+												controles.style.display = 'block';
+												controlesOcultos = false;
+												this.innerHTML = "ocultar";
+											}
+											else
+											{
+												controles.style.display = 'none';
+												controlesOcultos = true;
+												this.innerHTML = "mostrar";
+											}
+										}
+								
+			</script>
+    </body>
+</html>
+
+
+<script src="dependencias/gl-matrix.js"></script>
+<script src='src/core/Objeto3D.js'></script>
+<script src='src/core/ConfiguracionPrograma.js'></script>
+<script src='src/core/constantes.js'></script>
+<script src='src/core/materiales.js'></script>
+<script src='src/core/ProgramaShader.js'></script>
+<script src='src/core/ShaderVertices.js'></script>
+<script src='src/core/ShaderFragmentos.js'></script>
+<script src='src/core/Aplicacion.js'></script>
+<script src='src/core/Ejes.js'></script>
+<script src='src/core/Referencia.js'></script>
+<script src='src/core/LuzPuntual.js'></script>
+<script src='src/core/LuzDireccional.js'></script>
+<script src='src/core/LuzAmbiente.js'></script>
+
+<script src='src/figuras/Cilindro.js'></script>
+<script src='src/figuras/Plano.js'></script>
+<script src='src/figuras/Esfera.js'></script>
+<script src='src/figuras/SuperficieBarrido.js'></script>
+<script src='src/figuras/PrismaRectangular.js'></script>
+<script src='src/figuras/GrillaElementos.js'></script>
+<script src='src/figuras/SuperficieCurva.js'></script>
+
+<script src='src/elementos/Volcan.js'></script>
+<script src='src/elementos/Isla.js'></script>
+<script src='src/elementos/Playa.js'></script>
+<script src='src/elementos/MuelleCarga.js'></script>
+<script src='src/elementos/Agua.js'></script>
+<script src='src/elementos/BarcoCarguero.js'></script>
+<script src='src/elementos/PuenteBarco.js'></script>
+<script src='src/elementos/Grua.js'></script>
+<script src='src/elementos/Contenedor.js'></script>
+<script src='src/elementos/Biga.js'></script>
+<script src='src/elementos/BigaReflejante.js'></script>
+<script src='src/elementos/Cielo.js'></script>
+<script src='src/elementos/PosteLuz.js'></script>
+
+<script src='src/curvas/BSplineCubica.js'></script>
+<script src='src/curvas/BezierCubica.js'></script>
+<script src='src/curvas/BezierCompuesta.js'></script>
+<script src='src/curvas/Elipse.js'></script>
+<script src='src/curvas/InterpolacionLineal.js'></script>
+<script src='src/curvas/Vector.js'></script>
+
+<script src='src/core/funciones/crearShader.js'></script>
+<script src='src/core/funciones/crearPuntos3D.js'></script>
+<script src='src/core/funciones/precargarTextura.js'></script>
+<script src='src/core/funciones/ajustarCoordenadasTextura.js'></script>
+<script src='src/core/funciones/configuracionTextura.js'></script>
+<script src='src/core/funciones/crearArregloPlano.js'></script>
+<script src='src/core/funciones/crearConfiguradorShaderDifuso.js'></script>
+<script src='src/core/funciones/crearConfiguradorShaderDifusoMapaNormalesReflejo.js'></script>
+<script src='src/core/funciones/crearConfiguradorShaderDifusoReflejo.js'></script>
+<script src='src/core/funciones/crearConfiguradorShaderDifusoMapaNormales.js'></script>
+<script src='src/core/funciones/crearConfiguradorShaderAgua.js'></script>
+
+<script src='src/core/CamaraLibre.js'></script>
+<script src='src/core/CamaraOrbital.js'></script>
+<script src='src/core/CamaraCabina.js'></script>
+<script src='src/core/CamaraPrimeraPersona.js'></script>
+
+<script>	
+	debug = false;
+	
+	var aplicacion = new Aplicacion('canvasLienzo');
+	
+</Script>
